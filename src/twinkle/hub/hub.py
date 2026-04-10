@@ -193,7 +193,7 @@ class HubOperation:
         """Download model from the hub
 
         Args:
-            model_id_or_path: The model id
+            model_id_or_path: The hub model id or a local model directory
             revision: The model revision
             download_model: Whether downloading bin/safetensors files, this is usually useful when only
                 using tokenizer
@@ -204,10 +204,13 @@ class HubOperation:
         Returns:
             The local dir
         """
-        if kwargs.pop('ignore_model', False):
-            ignore_patterns = set(ignore_patterns or []) | set(large_file_pattern)
+        # Templates and models may pass an already-downloaded local path here.
+        # In that case we should bypass hub resolution entirely and use the
+        # existing directory as-is.
         if os.path.exists(model_id_or_path):
             return model_id_or_path
+        if kwargs.pop('ignore_model', False):
+            ignore_patterns = set(ignore_patterns or []) | set(large_file_pattern)
         hub = cls._get_hub_class(model_id_or_path)
         return hub.download_model(
             model_id_or_path=cls.remove_source_type(model_id_or_path),
