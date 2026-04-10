@@ -18,6 +18,44 @@ twinkle.initialize(mode='local', global_device_mesh=device_mesh)
 logger = get_logger()
 DEFAULT_MODEL_ID = 'ms://Qwen/Qwen3.5-4B'
 
+import warnings
+import urllib3
+import requests
+
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+warnings.filterwarnings("ignore", message="Unverified HTTPS request")
+
+# 1) patch HubApi session
+from modelscope.hub.api import HubApi
+_old_hubapi_init = HubApi.__init__
+
+def _patched_hubapi_init(self, *args, **kwargs):
+    _old_hubapi_init(self, *args, **kwargs)
+    self.session.verify = False
+
+HubApi.__init__ = _patched_hubapi_init
+
+# 2) patch msdatasets hf_file_utils requests path
+import modelscope.msdatasets.utils.hf_file_utils as hf_file_utils
+
+_old_request_with_retry_ms = hf_file_utils._request_with_retry_ms
+
+def _patched_request_with_retry_ms(method, url, max_retries=2,
+                                   base_wait_time=0.5, max_wait_time=2,
+                                   timeout=10.0, **params):
+    params.setdefault("verify", False)
+    return _old_request_with_retry_ms(
+        method=method,
+        url=url,
+        max_retries=max_retries,
+        base_wait_time=base_wait_time,
+        max_wait_time=max_wait_time,
+        timeout=timeout,
+        **params
+    )
+
+hf_file_utils._request_with_retry_ms = _patched_request_with_retry_ms
+
 
 def parse_args():
     parser = argparse.ArgumentParser()
