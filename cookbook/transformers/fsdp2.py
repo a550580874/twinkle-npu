@@ -1,3 +1,5 @@
+import argparse
+
 from peft import LoraConfig
 from tqdm import tqdm
 
@@ -14,12 +16,23 @@ device_mesh = DeviceMesh.from_sizes(fsdp_size=2, dp_size=4)
 twinkle.initialize(mode='local', global_device_mesh=device_mesh)
 
 logger = get_logger()
+DEFAULT_MODEL_ID = 'ms://Qwen/Qwen3.5-4B'
 
 
-def eval(model):
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        '--model-path',
+        default=DEFAULT_MODEL_ID,
+        help='Local model path or remote model id. Defaults to ms://Qwen/Qwen3.5-4B.',
+    )
+    return parser.parse_args()
+
+
+def eval(model, model_path):
     # 100 Samples
     dataset = Dataset(dataset_meta=DatasetMeta('ms://swift/self-cognition', data_slice=range(100)))
-    dataset.set_template('Qwen3_5Template', model_id='ms://Qwen/Qwen3.5-4B')
+    dataset.set_template('Qwen3_5Template', model_id=model_path)
     dataset.map(SelfCognitionProcessor('twinkle大模型', 'ModelScope社区'))
     dataset.encode()
     dataloader = DataLoader(dataset=dataset, batch_size=8)
@@ -30,11 +43,11 @@ def eval(model):
     return metrics
 
 
-def train():
+def train(model_path):
     # 1000 samples
     dataset = Dataset(dataset_meta=DatasetMeta('ms://swift/self-cognition', data_slice=range(1000)))
     # Set template to prepare encoding
-    dataset.set_template('Qwen3_5Template', model_id='ms://Qwen/Qwen3.5-4B')
+    dataset.set_template('Qwen3_5Template', model_id=model_path)
     # Preprocess the dataset to standard format
     dataset.map(SelfCognitionProcessor('twinkle大模型', 'ModelScope社区'))
     # Encode dataset
@@ -42,7 +55,7 @@ def train():
     # Global batch size = 8, for GPUs, so 1 sample per GPU
     dataloader = DataLoader(dataset=dataset, batch_size=8)
     # Use a TransformersModel
-    model = TransformersModel(model_id='ms://Qwen/Qwen3.5-4B')
+    model = TransformersModel(model_id=model_path)
     model.model._no_split_modules = {'Qwen3_5DecoderLayer'}
 
     lora_config = LoraConfig(r=8, lora_alpha=32, target_modules='all-linear')
@@ -72,7 +85,7 @@ def train():
             metric = model.calculate_metric(is_training=True)
             logger.info(f'Current is step {step} of {len(dataloader)}, metric: {metric}')
         if step > 0 and step % 40 == 0:
-            metrics = eval(model)
+            metrics = eval(model, model_path)
             logger.info(f'Eval metric: {metrics}')
             metrics['step'] = step
             if loss_metric > float(metrics['loss']):
@@ -82,4 +95,5 @@ def train():
 
 
 if __name__ == '__main__':
-    train()
+    args = parse_args()
+    train(args.model_path)
