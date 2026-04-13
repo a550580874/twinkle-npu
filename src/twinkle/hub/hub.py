@@ -1,6 +1,7 @@
 # Copyright (c) ModelScope Contributors. All rights reserved.
 import concurrent.futures
 import os
+import re
 import tempfile
 from concurrent.futures import Future
 from contextlib import contextmanager
@@ -57,6 +58,39 @@ class HubOperation:
             return parts[0]
         else:
             return parts[-1]
+
+    @staticmethod
+    def expand_local_path(resource_name: Optional[str]) -> Optional[str]:
+        if resource_name is None:
+            return None
+        return os.path.abspath(os.path.expanduser(resource_name))
+
+    @classmethod
+    def is_existing_local_path(cls, resource_name: Optional[str]) -> bool:
+        expanded = cls.expand_local_path(resource_name)
+        return bool(expanded) and os.path.isdir(expanded)
+
+    @staticmethod
+    def looks_like_local_path(resource_name: Optional[str]) -> bool:
+        if not resource_name:
+            return False
+        if resource_name.startswith(('ms://', 'hf://')):
+            return False
+        expanded = os.path.expanduser(resource_name)
+        drive, _ = os.path.splitdrive(expanded)
+        return (
+            os.path.isabs(expanded)
+            or expanded.startswith(('.', '..', '~'))
+            or bool(drive)
+        )
+
+    @classmethod
+    def is_valid_remote_model_ref(cls, resource_name: Optional[str]) -> bool:
+        resource_name = cls.remove_source_type(resource_name)
+        if not resource_name:
+            return False
+        # Keep existing semantics for hub repo ids like `namespace/name`.
+        return re.fullmatch(r'[^/\s]+/[^/\s]+', resource_name) is not None
 
     @classmethod
     def _get_hub_class(cls, resource_name: str) -> type:
@@ -204,11 +238,22 @@ class HubOperation:
         Returns:
             The local dir
         """
-        # Templates and models may pass an already-downloaded local path here.
-        # In that case we should bypass hub resolution entirely and use the
-        # existing directory as-is.
-        if os.path.exists(model_id_or_path):
-            return model_id_or_path
+        # Templates and models may pass an already-downloaded local directory
+        # here. Resolve and return it before any hub logic can treat it as a
+        # remote repo id.
+        if cls.is_existing_local_path(model_id_or_path):
+            return cls.expand_local_path(model_id_or_path)
+        if cls.looks_like_local_path(model_id_or_path):
+            local_path = cls.expand_local_path(model_id_or_path)
+            raise FileNotFoundError(
+                f"Local model path does not exist or is not a directory: '{local_path}'. "
+                'Pass an existing local directory, or use a hub repo id like '
+                "'ms://namespace/name' or 'namespace/name'.")
+        if not cls.is_valid_remote_model_ref(model_id_or_path):
+            raise ValueError(
+                f"Invalid model reference: '{model_id_or_path}'. "
+                "Expected an existing local directory, 'ms://namespace/name', "
+                "'hf://namespace/name', or 'namespace/name'.")
         if kwargs.pop('ignore_model', False):
             ignore_patterns = set(ignore_patterns or []) | set(large_file_pattern)
         hub = cls._get_hub_class(model_id_or_path)
