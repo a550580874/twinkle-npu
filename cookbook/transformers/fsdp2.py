@@ -76,7 +76,7 @@ def parse_args():
 def eval(model, template_model_id):
     # 100 Samples
     dataset = Dataset(dataset_meta=DatasetMeta('ms://swift/self-cognition', data_slice=range(100)))
-    dataset.set_template('Qwen3NextTextTemplate', model_id=template_model_id)
+    dataset.set_template('Template', model_id=template_model_id)
     dataset.map(SelfCognitionProcessor('twinkle大模型', 'ModelScope社区'))
     dataset.encode()
     dataloader = DataLoader(dataset=dataset, batch_size=8)
@@ -91,7 +91,7 @@ def train(template_model_id, model_ref):
     # 1000 samples
     dataset = Dataset(dataset_meta=DatasetMeta('ms://swift/self-cognition', data_slice=range(1000)))
     # Set template to prepare encoding
-    dataset.set_template('Qwen3NextTextTemplate', model_id=template_model_id)
+    dataset.set_template('Template', model_id=template_model_id)
     # Preprocess the dataset to standard format
     dataset.map(SelfCognitionProcessor('twinkle大模型', 'ModelScope社区'))
     # Encode dataset
