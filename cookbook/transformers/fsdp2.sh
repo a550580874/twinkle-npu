@@ -1,7 +1,7 @@
 MODEL_REF="/data/weight/Qwen3-Coder-Next/"
 TEMPLATE_MODEL_ID="/data/weight/Qwen3-Coder-Next/"
 source /usr/local/Ascend/ascend-toolkit/set_env.sh 
-IP=80.252.8.60
+IP=
 export http_proxy="http://p_atlas:proxy%40123@$IP:8080"
 export https_proxy="http://p_atlas:proxy%40123@$IP:8080"
 export no_proxy=127.0.0.1,.huawei.com,localhost,local,.local
