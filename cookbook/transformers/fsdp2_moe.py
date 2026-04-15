@@ -1,4 +1,5 @@
-import os
+import argparse
+
 from peft import LoraConfig
 from tqdm import tqdm
 
@@ -15,12 +16,29 @@ device_mesh = DeviceMesh.from_sizes(fsdp_size=4, dp_size=2)
 twinkle.initialize(mode='local', global_device_mesh=device_mesh)
 
 logger = get_logger()
+DEFAULT_TEMPLATE_MODEL_ID = 'ms://Qwen/Qwen3.5-4B'
+DEFAULT_MODEL_REF = DEFAULT_TEMPLATE_MODEL_ID
 
 
-def eval(model):
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        '--template-model-id',
+        default=DEFAULT_TEMPLATE_MODEL_ID,
+        help='Model id or local path used by dataset/template initialization.',
+    )
+    parser.add_argument(
+        '--model-ref',
+        default=DEFAULT_MODEL_REF,
+        help='Model reference used by TransformersModel. Supports a local directory or a remote model id.',
+    )
+    return parser.parse_args()
+
+
+def eval(model, template_model_id):
     # 100 Samples
     dataset = Dataset(dataset_meta=DatasetMeta('ms://swift/self-cognition', data_slice=range(100)))
-    dataset.set_template('Qwen3_5Template', model_id='ms://Qwen/Qwen3.5-4B')
+    dataset.set_template('Template', model_id=template_model_id)
     dataset.map(SelfCognitionProcessor('twinkle大模型', 'ModelScope社区'))
     dataset.encode()
     dataloader = DataLoader(dataset=dataset, batch_size=4)
@@ -31,21 +49,25 @@ def eval(model):
     return metrics
 
 
-def train():
+def train(template_model_id, model_ref):
     # 1000 samples
     dataset = Dataset(dataset_meta=DatasetMeta('ms://swift/self-cognition', data_slice=range(1000)))
     # Set template to prepare encoding
-    dataset.set_template('Qwen3_5Template', model_id='ms://Qwen/Qwen3.5-4B')
+    dataset.set_template('Template', model_id=template_model_id)
     # Preprocess the dataset to standard format
     dataset.map(SelfCognitionProcessor('twinkle大模型', 'ModelScope社区'))
     # Encode dataset
     dataset.encode()
     # Global batch size = 4, for GPUs, so 1 sample per GPU
     dataloader = DataLoader(dataset=dataset, batch_size=8)
-    # Use a TransformersModel, transformer_cls_names_to_wrap=Qwen3MoeSparseMoeBlock to avoid hang of fsdp2
-    model = TransformersModel(model_id='ms://Qwen/Qwen3.5-4B', fsdp_config={'transformer_cls_names_to_wrap':['Qwen3MoeSparseMoeBlock']})
+    # Qwen3-Next uses Qwen3NextSparseMoeBlock for MoE layers.
+    model = TransformersModel(
+        model_id=model_ref,
+        fsdp_config={'transformer_cls_names_to_wrap': ['Qwen3NextSparseMoeBlock']},
+    )
     # Patch MoE model to fix the hang bug, support transformers==4.*
-    model.apply_patch('ms://twinkle-kit/qwen3_moe_transformers4_patch')
+    # transformer5.x执行会报错，4.x才需要这个补丁
+    # model.apply_patch('ms://twinkle-kit/qwen3_moe_transformers4_patch')
     lora_config = LoraConfig(
         r=8,
         lora_alpha=32,
@@ -75,7 +97,7 @@ def train():
             metric = model.calculate_metric(is_training=True)
             logger.info(f'Current is step {step} of {len(dataloader)}, metric: {metric}')
         if step > 0 and step % 40 == 0:
-           metrics = eval(model)
+           metrics = eval(model, template_model_id)
            logger.info(f'Eval metric: {metrics}')
            metrics['step'] = step
            if loss_metric > float(metrics['loss']):
@@ -85,4 +107,5 @@ def train():
 
 
 if __name__ == '__main__':
-    train()
+    args = parse_args()
+    train(args.template_model_id, args.model_ref)

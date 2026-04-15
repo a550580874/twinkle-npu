@@ -9,6 +9,9 @@ from twinkle.dataset import Dataset, DatasetMeta
 from twinkle.model import TransformersModel
 from twinkle.preprocessor import SelfCognitionProcessor
 
+#npu
+import torch_npu
+
 device_group = [DeviceGroup(
     name='default',
     ranks=8,
