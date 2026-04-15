@@ -12,4 +12,4 @@ export http_proxy="http://p_atlas:proxy%40123@$IP:8080"
 export https_proxy="http://p_atlas:proxy%40123@$IP:8080"
 export no_proxy=127.0.0.1,.huawei.com,localhost,local,.local
 
-MODEL_REF="${MODEL_REF}" TEMPLATE_MODEL_ID="${TEMPLATE_MODEL_ID}" CUDA_VISIBLE_DEVICES=0,1,2,3 torchrun --nproc_per_node=4 ep_fsdp_qwen3_moe.py
+MODEL_REF="${MODEL_REF}" TEMPLATE_MODEL_ID="${TEMPLATE_MODEL_ID}" ASCEND_RT_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 torchrun --nproc_per_node=8 ep_fsdp_qwen3_moe.py
