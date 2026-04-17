@@ -1170,7 +1170,14 @@ class MegatronModel(TwinkleModel, nn.Module, CheckpointEngineMixin):
         if dp_rank == 0:
             self.hf_config.save_pretrained(output_dir)
             if isinstance(model[0], PeftModel):
+                config = model[0].peft_config[adapter_name]
+                target_modules = None
+                if getattr(config, 'origin_target_modules', None) == 'all-linear':
+                    target_modules = config.target_modules
+                    config.target_modules = 'all-linear'
                 model[0].peft_config[adapter_name].save_pretrained(output_dir)
+                if getattr(config, 'origin_target_modules', None) == 'all-linear':
+                    config.target_modules = target_modules
 
     def _save_megatron_format(self, output_dir: str, adapter_name: str, lora_converter=None):
         """Save in Megatron checkpoint format."""
@@ -1274,6 +1281,9 @@ class MegatronModel(TwinkleModel, nn.Module, CheckpointEngineMixin):
                     config_or_dir = LoraConfig(**config_or_dir)
                 config = config_or_dir
 
+                if config.target_modules == 'all-linear':
+                    config.origin_target_modules = 'all-linear'
+
                 # Expand target_modules (e.g., 'all-linear' -> actual module names)
                 if config.target_modules:
                     if isinstance(config.target_modules, str):
@@ -1327,6 +1337,7 @@ class MegatronModel(TwinkleModel, nn.Module, CheckpointEngineMixin):
         """
         adapter_name = kwargs.pop('adapter_name', self._get_default_group())
         optimizer_config = self.optimizer_group[adapter_name]
+        kwargs['model_id'] = self.tokenizer_id
         optimizer_config.template = construct_class(template_cls, Template, twinkle.template, **kwargs)
 
     @remote_function(dispatch='all')
@@ -1432,6 +1443,8 @@ class MegatronModel(TwinkleModel, nn.Module, CheckpointEngineMixin):
                 base_layer_name = f'{name[:-5]}.base_layer.bias'
                 if not model_keys or base_layer_name in model_keys:
                     name = base_layer_name
+            if 'experts' in name:
+                return base_layer_name
             return name
 
         is_peft_format = (adapter_name != _default_adapter_name)

@@ -1,14 +1,12 @@
-# Twinkle Server Launcher - Tinker-Compatible Megatron Backend
+# Twinkle Server Launcher - Tinker-Compatible Transformers Backend
 #
-# This script starts the Twinkle server with Tinker-compatible API support
-# using the Megatron model backend.
+# This script starts the Twinkle server with Tinker-compatible API support.
 # It reads the server_config.yaml in the same directory for all
-# configuration (model, deployment settings, etc.).
-# Run this script BEFORE running the client training script (lora.py).
+# configuration (model, sampler, deployment settings, etc.).
+# Run this script BEFORE running any client scripts (lora.py, sample.py, etc.).
 
 import os
 
-# Enable Ray debug mode for verbose logging during development
 os.environ['TWINKLE_TRUST_REMOTE_CODE'] = '0'
 
 from twinkle.server import launch_server

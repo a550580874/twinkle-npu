@@ -162,15 +162,21 @@ class Template:
         assert self.truncation_strategy != 'split', 'concat_input_feature does not support `truncation_strategy=split`'
         result = copy.deepcopy(prompt_input_feature)
         prompt_ids = result['input_ids']
+        labels = list(result.get('labels', []))
         input_ids = list(prompt_ids) + new_tokens
-        labels = [-100] * len(prompt_ids) + new_tokens
+        labels = labels[-1:] + labels[:-1]  # roll to input order
+        labels = labels + new_tokens
+        labels = labels[1:] + labels[:1]  # roll to input-1 order
         result['input_ids'] = input_ids
         result['labels'] = labels
         if 'mm_token_type_ids' in result:
-            token_ids_shape = result['mm_token_type_ids'].shape
-            device = result['mm_token_type_ids'].device
+            mm_token_type_ids = result['mm_token_type_ids']
+            if not isinstance(mm_token_type_ids, torch.Tensor):
+                mm_token_type_ids = torch.as_tensor(mm_token_type_ids)
+            token_ids_shape = mm_token_type_ids.shape
+            device = mm_token_type_ids.device
             padded_tokens = torch.zeros((token_ids_shape[0], len(new_tokens))).to(device)
-            result['mm_token_type_ids'] = torch.cat((result['mm_token_type_ids'], padded_tokens), dim=1)
+            result['mm_token_type_ids'] = torch.cat((mm_token_type_ids, padded_tokens), dim=1)
         new_input_feature = self._invoke_post_pipeline([result])[0]
         result.update(new_input_feature)
         messages: List[Message] = result.get('messages')
@@ -230,6 +236,9 @@ class Template:
 
     def set_mm_position_ids(self, input_feature: InputFeature):
         return np.arange(len(input_feature['input_ids']))
+
+    def get_vllm_input_ids(self, input_ids):
+        return input_ids
 
     def _check_max_length(self, input_feature: InputFeature) -> List[InputFeature]:
         if not self.max_length or 'input_ids' not in input_feature:
@@ -464,8 +473,8 @@ class Template:
                 apply_chat_template_kwargs['tokenize'] = True
 
             # Set default values for processor_kwargs
-            if 'enable_thinking' not in kwargs:
-                processor_kwargs['enable_thinking'] = self.enable_thinking
+            if 'padding' not in kwargs:
+                processor_kwargs['padding'] = False
 
             # Add remaining kwargs to processor_kwargs
             processor_kwargs.update(kwargs)
@@ -473,11 +482,11 @@ class Template:
             inputs = self.processor.apply_chat_template(
                 messages,
                 tools=tools,
-                padding=False,
                 return_dict=True,
                 add_generation_prompt=add_generation_prompt,
                 return_tensors='pt',
                 processor_kwargs=processor_kwargs,
+                enable_thinking=self.enable_thinking,
                 **apply_chat_template_kwargs)
         else:
             # No processor_kwargs support, pass all kwargs directly
@@ -540,7 +549,22 @@ class Template:
         return trajectory
 
     def encode(self, trajectory: Trajectory, add_generation_prompt: bool = False, **kwargs) -> InputFeature:
-        return self._encode_messages(trajectory, add_generation_prompt, **kwargs)
+        """Encode a single trajectory into an InputFeature.
+
+        This is a convenience wrapper around :meth:`batch_encode` for encoding
+        a single trajectory.
+
+        Args:
+            trajectory: The trajectory to encode.
+            add_generation_prompt: Whether to add generation prompt.
+
+        Returns:
+            The encoded InputFeature.
+        """
+        assert self.truncation_strategy != 'split', (
+            'encode() does not support truncation_strategy=="split" because it may produce multiple outputs. '
+            'Use batch_encode() instead.')
+        return self.batch_encode([trajectory], add_generation_prompt=add_generation_prompt, **kwargs)[0]
 
     @staticmethod
     def map_col_to_row(trajectories: Dict[str, Any]):
@@ -636,7 +660,7 @@ class Template:
         from concurrent.futures import ThreadPoolExecutor
         from functools import partial
         encode_fn = partial(
-            self.encode,
+            self._encode_messages,
             add_generation_prompt=add_generation_prompt,
             **kwargs,
         )
@@ -652,7 +676,7 @@ class Template:
     def check(self, trajectory: Trajectory) -> Optional[Trajectory]:
         encoded = None
         try:
-            encoded = self.batch_encode([trajectory])
+            encoded = self.encode(trajectory)
             if not encoded:
                 return None
             else:
