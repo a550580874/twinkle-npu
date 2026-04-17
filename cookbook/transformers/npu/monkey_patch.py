@@ -1,6 +1,8 @@
 import torch
 import torch_npu
+import functools
 
+_PATCHED = False
 
 class GmmFunction(torch.autograd.Function):
     """
@@ -107,3 +109,13 @@ def _grouped_mm_npu(input: torch.Tensor, weight_ekn: torch.Tensor, offs: torch.T
     counts = counts.to(torch.int64)
 
     return GmmFunction.apply(input, counts, weight_ekn)
+
+
+
+def apply_hf_moe_grouped_mm_patch():
+    import transformers.integrations.moe as hf_moe
+    from twinkle_npu.cookbook.transformers.npu.patch import _grouped_mm_npu
+
+    hf_moe._grouped_mm = _grouped_mm_npu
+    print("[PATCH] transformers.integrations.moe._grouped_mm -> _grouped_mm_npu")
+
