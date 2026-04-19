@@ -18,7 +18,7 @@ PREFETCH_FORWARD_LAYERS=1
 PREFETCH_BACKWARD_LAYERS=1
 PREFETCH=False
 PREFETCH_BLOCK=model.model.model.layers
-LOG_DIR=/home/ming/twinkle_log/noPre_seed_nogemm
+LOG_DIR=/home/l00680170/twinkle_log/noPre_seed_nogemm
 
 TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
 RUN_DIR="${LOG_DIR}/${TIMESTAMP}"
@@ -103,7 +103,7 @@ trim_ai_core_csv() {
   echo "[launch] log_file=${LOG_FILE}"
   echo "[launch] ai_core_file=${AI_CORE_FILE}"
 
-  ASCEND_RT_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 torchrun --nproc_per_node=8 fsdp2_moe.py \
+  ASCEND_RT_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 torchrun --nproc_per_node=8 fsdp2_moe_qwen3_coder_next.py \
     --dataset-id "${DATASET_ID}" \
     --model-id "${MODEL_ID}" \
     --fsdp-size "${FSDP_SIZE}" \
