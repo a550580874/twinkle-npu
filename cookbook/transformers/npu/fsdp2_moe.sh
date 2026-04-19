@@ -18,12 +18,13 @@ PREFETCH_FORWARD_LAYERS=1
 PREFETCH_BACKWARD_LAYERS=1
 PREFETCH=True
 PREFETCH_BLOCK=model.model.model.layers
+LOG_DIR=/path/to/logs
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
-LOG_FILE="${SCRIPT_DIR}/train_${TIMESTAMP}.log"
-AI_CORE_RAW_FILE="${SCRIPT_DIR}/ai_core_${TIMESTAMP}_raw.csv"
-AI_CORE_FILE="${SCRIPT_DIR}/ai_core_${TIMESTAMP}.csv"
+mkdir -p "${LOG_DIR}"
+LOG_FILE="${LOG_DIR}/train_${TIMESTAMP}.log"
+AI_CORE_RAW_FILE="${LOG_DIR}/ai_core_${TIMESTAMP}_raw.csv"
+AI_CORE_FILE="${LOG_DIR}/ai_core_${TIMESTAMP}.csv"
 
 sample_ai_core() {
   local train_pid="$1"
