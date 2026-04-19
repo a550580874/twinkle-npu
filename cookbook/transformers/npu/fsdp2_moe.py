@@ -111,7 +111,7 @@ def train():
         model = TransformersModel(model_id=args.model_id, fsdp_config={'transformer_cls_names_to_wrap':['Qwen3MoeSparseMoeBlock']})
 
     # Patch MoE model to fix the hang bug, support transformers==4.*
-    model.apply_patch('ms://twinkle-kit/qwen3_moe_transformers4_patch')
+    # model.apply_patch('ms://twinkle-kit/qwen3_moe_transformers4_patch')
     lora_config = LoraConfig(
         r=8,
         lora_alpha=32,
