@@ -1,9 +1,12 @@
 #固定随机
+import os
 import random
-import numpy as np
 import time
+import numpy as np
 import torch
-import torch_npu
+import torch.distributed as dist
+
+
 def seed_all(seed=1234, mode=True, is_gpu=True):
     random.seed(seed)
     os.environ['PYTHONHASHSEED'] = str(seed)
@@ -26,10 +29,11 @@ def seed_all(seed=1234, mode=True, is_gpu=True):
         torch_npu.npu.manual_seed_all(seed)
         torch_npu.npu.manual_seed(seed)
     print("====== seed all ========")
-seed_all_own(is_gpu=False)
-from msprobe.pytorch import seed_all
-seed_all(mode=True)
+
 
 def get_time():
     torch.npu.synchronize()
     return time.time()
+
+def get_rank():
+    return dist.get_rank()

@@ -1,8 +1,9 @@
+import functools
 import torch
 import torch_npu
-import functools
 
 _PATCHED = False
+
 
 class GmmFunction(torch.autograd.Function):
     """
@@ -45,7 +46,6 @@ class GmmFunction(torch.autograd.Function):
     @staticmethod
     def backward(ctx, grad_output: torch.Tensor):
         x, group_list, weight_ekn = ctx.saved_tensors
-        E, K, N = weight_ekn.shape
 
         # --------------------------------------------------
         # 1) grad_input
@@ -72,7 +72,7 @@ class GmmFunction(torch.autograd.Function):
         # 这里输出希望得到 packed [E, K, N]
         # --------------------------------------------------
         grad_weight = torch_npu.npu_grouped_matmul(
-            [x.transpose(0, 1)],   # 注意：不要 contiguous()
+            [x.transpose(0, 1)],
             [grad_output],
             bias=None,
             group_list=group_list,
@@ -81,8 +81,6 @@ class GmmFunction(torch.autograd.Function):
             group_list_type=1,
         )[0]
 
-        # 这里假设算子直接返回 [E, K, N]
-        # 若你实测不是这个形状，我再帮你按真实 shape 调整
         return grad_input, None, grad_weight.contiguous()
 
 
@@ -94,7 +92,6 @@ def _grouped_mm_npu(input: torch.Tensor, weight_ekn: torch.Tensor, offs: torch.T
     weight_ekn: [E, K, N]
     offs:       [E] cumulative ends
     """
-    print("=====npu_gemm=====")
     assert input.dim() == 2, f"input must be [M, K], got {tuple(input.shape)}"
     assert weight_ekn.dim() == 3, f"weight_ekn must be [E, K, N], got {tuple(weight_ekn.shape)}"
     assert offs.dim() == 1, f"offs must be [E], got {tuple(offs.shape)}"
@@ -111,11 +108,8 @@ def _grouped_mm_npu(input: torch.Tensor, weight_ekn: torch.Tensor, offs: torch.T
     return GmmFunction.apply(input, counts, weight_ekn)
 
 
-
 def apply_hf_moe_grouped_mm_patch():
     import transformers.integrations.moe as hf_moe
-    from twinkle_npu.cookbook.transformers.npu.patch import _grouped_mm_npu
 
     hf_moe._grouped_mm = _grouped_mm_npu
     print("[PATCH] transformers.integrations.moe._grouped_mm -> _grouped_mm_npu")
-
