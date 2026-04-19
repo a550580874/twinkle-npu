@@ -18,7 +18,7 @@ PREFETCH_FORWARD_LAYERS=1
 PREFETCH_BACKWARD_LAYERS=1
 PREFETCH=False
 PREFETCH_BLOCK=model.model.model.layers
-LOG_DIR=/home/l00680170/twinkle_log/noPre_seed_nogemm
+LOG_DIR=/home/ming/twinkle_log/noPre_seed_nogemm
 
 TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
 RUN_DIR="${LOG_DIR}/${TIMESTAMP}"
