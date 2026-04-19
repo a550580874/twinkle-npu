@@ -104,7 +104,7 @@ def train():
     dataset.encode()
     # Global batch size = 4, for GPUs, so 1 sample per GPU
     dataloader = DataLoader(dataset=dataset, batch_size=8)
-    if args.prefetch_forward_layers >= 1:
+    if args.prefetch:
         model = TransformersModel(model_id=args.model_id, fsdp_config={'transformer_cls_names_to_wrap':['Qwen3MoeSparseMoeBlock'], 'forward_prefetch':True})
     else:        
         # Use a TransformersModel, transformer_cls_names_to_wrap=Qwen3MoeSparseMoeBlock to avoid hang of fsdp2
