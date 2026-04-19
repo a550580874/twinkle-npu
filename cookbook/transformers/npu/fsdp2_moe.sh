@@ -16,7 +16,8 @@ NPU_GEMM=True
 # prefetch layers set only support native_fsdp
 PREFETCH_FORWARD_LAYERS=1
 PREFETCH_BACKWARD_LAYERS=1
-PREFETCH=True
+#accelerate 不支持，先不弄 prefetch
+PREFETCH=False
 PREFETCH_BLOCK=model.model.model.layers
 LOG_DIR=/path/to/logs
 
