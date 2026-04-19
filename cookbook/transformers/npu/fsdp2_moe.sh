@@ -21,10 +21,11 @@ PREFETCH_BLOCK=model.model.model.layers
 LOG_DIR=/path/to/logs
 
 TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
-mkdir -p "${LOG_DIR}"
-LOG_FILE="${LOG_DIR}/train_${TIMESTAMP}.log"
-AI_CORE_RAW_FILE="${LOG_DIR}/ai_core_${TIMESTAMP}_raw.csv"
-AI_CORE_FILE="${LOG_DIR}/ai_core_${TIMESTAMP}.csv"
+RUN_DIR="${LOG_DIR}/${TIMESTAMP}"
+mkdir -p "${RUN_DIR}"
+LOG_FILE="${RUN_DIR}/train.log"
+AI_CORE_RAW_FILE="${RUN_DIR}/ai_core_raw.csv"
+AI_CORE_FILE="${RUN_DIR}/ai_core.csv"
 
 sample_ai_core() {
   local train_pid="$1"
