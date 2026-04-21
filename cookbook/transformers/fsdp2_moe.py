@@ -40,7 +40,6 @@ def eval(model):
     return metrics
 
 def train():
-    
     # 1000 samples
     dataset = Dataset(dataset_meta=DatasetMeta('ms://swift/self-cognition', data_slice=range(1000)))
     # Set template to prepare encoding
@@ -53,8 +52,8 @@ def train():
     dataloader = DataLoader(dataset=dataset, batch_size=8)
     # Use a TransformersModel, transformer_cls_names_to_wrap=Qwen3MoeSparseMoeBlock to avoid hang of fsdp2
     model = TransformersModel(model_id='ms://Qwen/Qwen3-30B-A3B-Instruct-2507', fsdp_config={'transformer_cls_names_to_wrap':['Qwen3MoeSparseMoeBlock']})
-    # # Patch MoE model to fix the hang bug, support transformers==4.*
-    # model.apply_patch('ms://twinkle-kit/qwen3_moe_transformers4_patch')
+    # Patch MoE model to fix the hang bug, support transformers==4.*
+    model.apply_patch('ms://twinkle-kit/qwen3_moe_transformers4_patch')
     lora_config = LoraConfig(
         r=8,
         lora_alpha=32,
@@ -76,7 +75,6 @@ def train():
     # lora: 34G * 8
     rank = dist.get_rank()
     for step, batch in enumerate(dataloader):
-        start_time = get_time()
         # Do forward and backward
         model.forward_backward(inputs=batch)
         # Step
@@ -92,8 +90,6 @@ def train():
            if loss_metric > float(metrics['loss']):
                model.save(f'checkpoint-{step}')
                loss_metric = float(metrics['loss'])
-        if rank == 0:
-            print(f"step_time: {get_time() - start_time}")
     model.save(f'last-checkpoint')
 
 
