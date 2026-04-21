@@ -8,6 +8,7 @@ from twinkle.dataloader import DataLoader
 from twinkle.dataset import Dataset, DatasetMeta
 from twinkle.model import TransformersModel
 from twinkle.preprocessor import SelfCognitionProcessor
+from twinkle.utils import is_torch_npu_available
 
 # Construct a device_mesh, fsdp=4, dp=2
 device_mesh = DeviceMesh.from_sizes(fsdp_size=4, dp_size=2)
@@ -16,6 +17,14 @@ twinkle.initialize(mode='local', global_device_mesh=device_mesh)
 
 logger = get_logger()
 
+# npu patch
+if is_torch_npu_available():
+    from monkey_patch_npu import apply_hf_moe_grouped_mm_patch
+    apply_hf_moe_grouped_mm_patch()
+    import torch_npu
+    from torch_npu.contrib import transfer_to_npu
+    
+    
 
 def eval(model):
     # 100 Samples
@@ -30,8 +39,8 @@ def eval(model):
     metrics = model.calculate_metric(is_training=False)
     return metrics
 
-
 def train():
+    
     # 1000 samples
     dataset = Dataset(dataset_meta=DatasetMeta('ms://swift/self-cognition', data_slice=range(1000)))
     # Set template to prepare encoding
@@ -44,8 +53,8 @@ def train():
     dataloader = DataLoader(dataset=dataset, batch_size=8)
     # Use a TransformersModel, transformer_cls_names_to_wrap=Qwen3MoeSparseMoeBlock to avoid hang of fsdp2
     model = TransformersModel(model_id='ms://Qwen/Qwen3-30B-A3B-Instruct-2507', fsdp_config={'transformer_cls_names_to_wrap':['Qwen3MoeSparseMoeBlock']})
-    # Patch MoE model to fix the hang bug, support transformers==4.*
-    model.apply_patch('ms://twinkle-kit/qwen3_moe_transformers4_patch')
+    # # Patch MoE model to fix the hang bug, support transformers==4.*
+    # model.apply_patch('ms://twinkle-kit/qwen3_moe_transformers4_patch')
     lora_config = LoraConfig(
         r=8,
         lora_alpha=32,
@@ -65,7 +74,9 @@ def train():
     logger.info(f'Total steps: {len(dataloader)}')
     loss_metric = 99.0
     # lora: 34G * 8
+    rank = dist.get_rank()
     for step, batch in enumerate(dataloader):
+        start_time = get_time()
         # Do forward and backward
         model.forward_backward(inputs=batch)
         # Step
@@ -81,6 +92,8 @@ def train():
            if loss_metric > float(metrics['loss']):
                model.save(f'checkpoint-{step}')
                loss_metric = float(metrics['loss'])
+        if rank == 0:
+            print(f"step_time: {get_time() - start_time}")
     model.save(f'last-checkpoint')
 
 
