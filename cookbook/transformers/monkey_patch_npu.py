@@ -2,7 +2,7 @@ import functools
 import torch
 from twinkle.utils import is_torch_npu_available
 
-if is_torch_npu_available:
+if is_torch_npu_available():
     import torch_npu
 
 class GmmFunction(torch.autograd.Function):
