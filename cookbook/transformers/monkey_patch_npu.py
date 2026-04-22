@@ -6,16 +6,6 @@ if is_torch_npu_available():
     import torch_npu
 
 class GmmFunction(torch.autograd.Function):
-    """
-    对应 transformers 的 _grouped_mm 语义层，但这里直接使用 3D weight:
-      x:          [M, K]
-      group_list: [E]
-      weight_ekn: [E, K, N]
-
-    输出:
-      y:          [M, N]
-    """
-
     @staticmethod
     def forward(ctx, x: torch.Tensor, group_list: torch.Tensor, weight_ekn: torch.Tensor):
         assert x.dim() == 2, f"x must be [M, K], got {tuple(x.shape)}"
@@ -32,7 +22,6 @@ class GmmFunction(torch.autograd.Function):
 
         ctx.save_for_backward(x, group_list, weight_ekn)
 
-        # 关键：single x + single 3D weight
         outputs = torch_npu.npu_grouped_matmul(
             [x],
             [weight_ekn],
@@ -46,12 +35,7 @@ class GmmFunction(torch.autograd.Function):
     @staticmethod
     def backward(ctx, grad_output: torch.Tensor):
         x, group_list, weight_ekn = ctx.saved_tensors
-
-        # --------------------------------------------------
-        # 1) grad_input
-        # dX_i = dY_i @ W_i^T
-        # weight_ekn.transpose(-2, -1): [E, N, K]
-        # --------------------------------------------------
+        
         grad_input = torch_npu.npu_grouped_matmul(
             [grad_output],
             [weight_ekn.transpose(-2, -1).contiguous()],
@@ -61,16 +45,7 @@ class GmmFunction(torch.autograd.Function):
             split_item=2,
             group_list_type=1,
         )[0]
-
-        # --------------------------------------------------
-        # 2) grad_weight
-        # dW_i = X_i^T @ dY_i
-        #
-        # 延续你前面已验证过的约束：
-        # group_type=2 时，x 必须是 transpose view，不能 contiguous()
-        #
-        # 这里输出希望得到 packed [E, K, N]
-        # --------------------------------------------------
+        
         grad_weight = torch_npu.npu_grouped_matmul(
             [x.transpose(0, 1)],
             [grad_output],
@@ -85,13 +60,6 @@ class GmmFunction(torch.autograd.Function):
 
 
 def _grouped_mm_npu(input: torch.Tensor, weight_ekn: torch.Tensor, offs: torch.Tensor) -> torch.Tensor:
-    """
-    对齐 transformers 的 _grouped_mm(input, weight, offs)
-
-    input:      [M, K]
-    weight_ekn: [E, K, N]
-    offs:       [E] cumulative ends
-    """
     assert input.dim() == 2, f"input must be [M, K], got {tuple(input.shape)}"
     assert weight_ekn.dim() == 3, f"weight_ekn must be [E, K, N], got {tuple(weight_ekn.shape)}"
     assert offs.dim() == 1, f"offs must be [E], got {tuple(offs.shape)}"
