@@ -1,9 +1,5 @@
 import functools
 import torch
-from twinkle.utils import is_torch_npu_available
-
-if is_torch_npu_available():
-    import torch_npu
 
 class GmmFunction(torch.autograd.Function):
     @staticmethod
@@ -82,3 +78,8 @@ def apply_hf_moe_grouped_mm_patch():
     hf_moe._grouped_mm = _grouped_mm_npu
     print("[PATCH] transformers.integrations.moe._grouped_mm -> _grouped_mm_npu")
 
+def apply_npu_patch():
+    import torch
+    import torch_npu
+    from torch_npu.contrib import transfer_to_npu
+    apply_hf_moe_grouped_mm_patch()
