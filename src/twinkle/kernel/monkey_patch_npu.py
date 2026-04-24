@@ -1,5 +1,6 @@
 import functools
 import torch
+import torch_npu
 
 class GmmFunction(torch.autograd.Function):
     @staticmethod
