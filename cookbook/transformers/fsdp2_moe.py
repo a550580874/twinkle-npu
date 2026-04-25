@@ -22,8 +22,8 @@ logger = get_logger()
 # npu patch
 if is_torch_npu_available():
     apply_npu_patch()
-    
-    
+
+
 def eval(model):
     # 100 Samples
     dataset = Dataset(dataset_meta=DatasetMeta('ms://swift/self-cognition', data_slice=range(100)))
